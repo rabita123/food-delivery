@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import Image from 'next/image';
 
 export default function OrderPreview() {
   const router = useRouter();
@@ -20,28 +21,26 @@ export default function OrderPreview() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        
-        if (!session) {
-          const redirect = encodeURIComponent('/order-preview');
-          router.push(`/login?redirect=${redirect}`);
-          return;
+        if (!user) {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          
+          if (!session) {
+            const redirect = encodeURIComponent('/order-preview');
+            router.push(`/login?redirect=${redirect}`);
+            return;
+          }
         }
-        
-        setIsLoading(false);
       } catch (error) {
         console.error('Auth error:', error);
         router.push('/login');
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    if (!user) {
-      checkAuth();
-    } else {
-      setIsLoading(false);
-    }
-  }, [router, supabase.auth, user]);
+    checkAuth();
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,14 +183,19 @@ export default function OrderPreview() {
                 {cart.map((item) => (
                   <div key={item.id} className="flex justify-between items-center">
                     <div className="flex items-center">
-                      <img
-                        src={item.image_url}
-                        alt={item.name}
-                        className="h-16 w-16 object-cover rounded"
-                      />
+                      <div className="relative h-16 w-16 rounded-md overflow-hidden">
+                        <Image
+                          src={item.image_url || '/default-dish.jpg'}
+                          alt={item.name}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
                       <div className="ml-4">
                         <p className="font-medium text-gray-900">{item.name}</p>
-                        <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
+                        <p className="text-sm text-gray-500">
+                          Quantity: {item.quantity} × ${item.price.toFixed(2)}
+                        </p>
                       </div>
                     </div>
                     <p className="font-medium text-gray-900">
