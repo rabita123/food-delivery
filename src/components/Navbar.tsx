@@ -68,6 +68,9 @@ export default function Navbar() {
             <Link href="/menu" className="text-gray-700 hover:text-orange-500">
               Menu
             </Link>
+            <Link href="/recipes" className="text-gray-700 hover:text-orange-500">
+              Recipes
+            </Link>
             <Link href="/about" className="text-gray-700 hover:text-orange-500">
               About
             </Link>
@@ -202,6 +205,13 @@ export default function Navbar() {
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Menu
+            </Link>
+            <Link
+              href="/recipes"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-orange-500"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Recipes
             </Link>
             <Link
               href="/about"

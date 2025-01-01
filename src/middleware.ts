@@ -6,36 +6,48 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
-  // Refresh session if expired - required for Server Components
-  await supabase.auth.getSession();
-
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  // Protected routes
-  if (!session && (
-    req.nextUrl.pathname.startsWith('/profile') ||
-    req.nextUrl.pathname.startsWith('/admin') ||
-    req.nextUrl.pathname.startsWith('/dashboard') ||
-    req.nextUrl.pathname.startsWith('/order-preview') ||
-    req.nextUrl.pathname.startsWith('/api/create-payment-intent')
-  )) {
-    const redirect = encodeURIComponent(req.nextUrl.pathname);
-    return NextResponse.redirect(new URL(`/login?redirect=${redirect}`, req.url));
+  // Check if accessing admin routes
+  if (req.nextUrl.pathname.startsWith('/admin')) {
+    // Allow access to admin login page
+    if (req.nextUrl.pathname === '/admin/login') {
+      // If user is already logged in and is admin, redirect to dashboard
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile?.role === 'admin') {
+          return NextResponse.redirect(new URL('/admin/dashboard', req.url));
+        }
+      }
+      return res;
+    }
+
+    // For all other admin routes, check authentication and admin role
+    if (!session) {
+      return NextResponse.redirect(new URL('/admin/login', req.url));
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profile?.role !== 'admin') {
+      return NextResponse.redirect(new URL('/', req.url));
+    }
   }
 
   return res;
 }
 
 export const config = {
-  matcher: [
-    '/profile/:path*',
-    '/admin/:path*',
-    '/auth/callback',
-    '/dashboard/:path*',
-    '/order-preview',
-    '/payment',
-    '/api/create-payment-intent'
-  ],
+  matcher: ['/admin/:path*'],
 }; 
