@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Box,
   Drawer,
@@ -21,7 +21,9 @@ import {
   Settings as SettingsIcon,
   Menu as MenuIcon,
   Category as CategoryIcon,
+  Logout as LogoutIcon,
 } from '@mui/icons-material';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 const drawerWidth = 240;
 
@@ -36,14 +38,25 @@ const menuItems = [
 
 const AdminSidebar = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const supabase = createClientComponentClient();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/admin/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
   const drawer = (
-    <Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ p: 2 }}>
         <Typography variant="h6" component="div">
           Admin Panel
@@ -67,6 +80,31 @@ const AdminSidebar = () => {
             <ListItemText primary={item.text} />
           </ListItem>
         ))}
+      </List>
+      <Box sx={{ flexGrow: 1 }} />
+      <Divider />
+      <List>
+        <ListItem
+          component="button"
+          onClick={handleLogout}
+          sx={{
+            width: '100%',
+            textAlign: 'left',
+            '&:hover': {
+              backgroundColor: 'rgba(0, 0, 0, 0.04)',
+            },
+          }}
+        >
+          <ListItemIcon>
+            <LogoutIcon color="error" />
+          </ListItemIcon>
+          <ListItemText 
+            primary="Logout" 
+            primaryTypographyProps={{ 
+              color: 'error' 
+            }} 
+          />
+        </ListItem>
       </List>
     </Box>
   );
@@ -99,7 +137,10 @@ const AdminSidebar = () => {
         }}
         sx={{
           display: { xs: 'block', sm: 'none' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: drawerWidth,
+          },
         }}
       >
         {drawer}
@@ -110,7 +151,10 @@ const AdminSidebar = () => {
         variant="permanent"
         sx={{
           display: { xs: 'none', sm: 'block' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: drawerWidth,
+          },
         }}
         open
       >

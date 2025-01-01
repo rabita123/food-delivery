@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { usePathname } from 'next/navigation';
 
 interface Profile {
   id: string;
@@ -18,6 +19,12 @@ export default function Navbar() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const { user, signOut } = useAuth();
+  const pathname = usePathname();
+
+  // Hide navbar if we're in the admin section
+  if (pathname?.startsWith('/admin')) {
+    return null;
+  }
 
   useEffect(() => {
     if (user) {
