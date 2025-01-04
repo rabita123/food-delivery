@@ -1,195 +1,184 @@
 "use client"
 
-import React from "react"
-import { useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Loader2, ShoppingBag, DollarSign, ChefHat, CheckCircle, Clock, XCircle } from "lucide-react"
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
-interface DashboardStats {
-  totalOrders: number
-  completedOrders: number
-  pendingOrders: number
-  canceledOrders: number
-  totalRevenue: number
-  totalDishes: number
+interface DashboardData {
+  totalOrders: number;
+  totalRevenue: number;
+  totalCustomers: number;
+  totalDishes: number;
+  recentOrders: Array<{
+    id: string;
+    created_at: string;
+    total_amount: number;
+    status: string;
+    user: {
+      full_name: string;
+      email: string;
+    };
+  }>;
 }
 
-const DashboardPage = () => {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalOrders: 0,
-    completedOrders: 0,
-    pendingOrders: 0,
-    canceledOrders: 0,
-    totalRevenue: 0,
-    totalDishes: 0
-  })
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+interface OrderResponse {
+  id: string;
+  created_at: string;
+  total_amount: number;
+  status: string;
+  user: {
+    full_name: string;
+    email: string;
+  };
+}
 
-  const supabase = createClientComponentClient()
+export default function AdminDashboard() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          created_at,
+          total_amount,
+          status,
+          user:profiles!inner(
+            full_name,
+            email
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(5)
+        .returns<OrderResponse[]>();
+
+      if (ordersError) throw ordersError;
+
+      const { count: totalOrders } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: totalCustomers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: totalDishes } = await supabase
+        .from('dishes')
+        .select('*', { count: 'exact', head: true });
+
+      const { data: revenueData } = await supabase
+        .from('orders')
+        .select('total_amount')
+        .eq('status', 'completed');
+
+      const totalRevenue = revenueData?.reduce(
+        (sum, order) => sum + (order.total_amount || 0),
+        0
+      ) || 0;
+
+      setDashboardData({
+        totalOrders: totalOrders || 0,
+        totalRevenue,
+        totalCustomers: totalCustomers || 0,
+        totalDishes: totalDishes || 0,
+        recentOrders: ordersData || [],
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
-
-  const fetchDashboardData = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      // Fetch orders with status counts
-      const { data: orders, error: orderError } = await supabase
-        .from('orders')
-        .select('id, total_amount, status')
-
-      if (orderError) throw orderError
-
-      // Calculate order statistics
-      const orderStats = orders?.reduce(
-        (acc, order) => {
-          acc.totalOrders++
-          acc.totalRevenue += order.total_amount || 0
-
-          switch (order.status) {
-            case 'completed':
-              acc.completedOrders++
-              break
-            case 'pending':
-              acc.pendingOrders++
-              break
-            case 'canceled':
-              acc.canceledOrders++
-              break
-          }
-          return acc
-        },
-        {
-          totalOrders: 0,
-          completedOrders: 0,
-          pendingOrders: 0,
-          canceledOrders: 0,
-          totalRevenue: 0
-        }
-      ) || {
-        totalOrders: 0,
-        completedOrders: 0,
-        pendingOrders: 0,
-        canceledOrders: 0,
-        totalRevenue: 0
-      }
-
-      // Fetch total dishes
-      const { count: dishCount, error: dishError } = await supabase
-        .from('dishes')
-        .select('id', { count: 'exact' })
-        .eq('is_available', true)
-
-      if (dishError) throw dishError
-
-      setStats({
-        ...orderStats,
-        totalDishes: dishCount || 0
-      })
-
-    } catch (error: any) {
-      console.error('Error fetching dashboard data:', error)
-      setError('Failed to load dashboard data')
-    } finally {
-      setIsLoading(false)
+    if (!user) {
+      router.push('/admin/login');
+      return;
     }
-  }
+    fetchDashboardData();
+  }, [user, router, fetchDashboardData]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
       </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <p className="text-red-500 mb-4">{error}</p>
-        <button
-          onClick={fetchDashboardData}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Retry
-        </button>
-      </div>
-    )
+    );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Dashboard Overview</h1>
-        <p className="text-sm text-gray-500">
-          Last updated: {new Date().toLocaleString()}
-        </p>
+    <div className="p-6">
+      <h1 className="text-2xl font-semibold mb-6">Dashboard</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-gray-500 text-sm">Total Orders</h2>
+          <p className="text-3xl font-semibold">{dashboardData?.totalOrders}</p>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-gray-500 text-sm">Total Revenue</h2>
+          <p className="text-3xl font-semibold">
+            ${((dashboardData?.totalRevenue || 0) / 100).toFixed(2)}
+          </p>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-gray-500 text-sm">Total Customers</h2>
+          <p className="text-3xl font-semibold">{dashboardData?.totalCustomers}</p>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-gray-500 text-sm">Total Dishes</h2>
+          <p className="text-3xl font-semibold">{dashboardData?.totalDishes}</p>
+        </div>
       </div>
 
-      {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Orders Card */}
-        <div className="bg-white rounded-lg border shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-500">Total Orders</h3>
-              <p className="text-2xl font-bold mt-1">{stats.totalOrders}</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <ShoppingBag className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-sm">
-            <div className="flex items-center">
-              <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
-              <span>{stats.completedOrders}</span>
-            </div>
-            <div className="flex items-center">
-              <Clock className="h-4 w-4 text-yellow-500 mr-1" />
-              <span>{stats.pendingOrders}</span>
-            </div>
-            <div className="flex items-center">
-              <XCircle className="h-4 w-4 text-red-500 mr-1" />
-              <span>{stats.canceledOrders}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Revenue Card */}
-        <div className="bg-white rounded-lg border shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-500">Total Revenue</h3>
-              <p className="text-2xl font-bold mt-1">${stats.totalRevenue.toFixed(2)}</p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        {/* Dishes Card */}
-        <div className="bg-white rounded-lg border shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-500">Available Dishes</h3>
-              <p className="text-2xl font-bold mt-1">{stats.totalDishes}</p>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <ChefHat className="h-6 w-6 text-orange-600" />
-            </div>
-          </div>
-          <div className="text-sm text-gray-500">
-            Active menu items ready to order
-          </div>
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold mb-4">Recent Orders</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-3 px-4">Order ID</th>
+                <th className="text-left py-3 px-4">Customer</th>
+                <th className="text-left py-3 px-4">Date</th>
+                <th className="text-left py-3 px-4">Amount</th>
+                <th className="text-left py-3 px-4">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboardData?.recentOrders.map((order) => (
+                <tr key={order.id} className="border-b">
+                  <td className="py-3 px-4">{order.id}</td>
+                  <td className="py-3 px-4">{order.user?.full_name}</td>
+                  <td className="py-3 px-4">
+                    {new Date(order.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="py-3 px-4">
+                    ${(order.total_amount / 100).toFixed(2)}
+                  </td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs ${
+                        order.status === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : order.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {order.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
-  )
-}
-
-export default DashboardPage 
+  );
+} 

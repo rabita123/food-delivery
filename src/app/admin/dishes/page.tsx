@@ -1,527 +1,447 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
+import { supabase } from "@/lib/supabase"
+import Image from "next/image"
 
 interface Dish {
   id: string
   name: string
   description: string
   price: number
-  category_id: string
   image_url: string
   is_available: boolean
-  categories?: {
+  category: {
     id: string
     name: string
   }
+  created_at: string
 }
 
-interface FormData {
+interface Category {
+  id: string
   name: string
-  description: string
-  price: string
-  category_id: string
-  image_url: string
-  is_available: boolean
 }
 
-export default function DishesPage() {
+export default function AdminDishes() {
+  const router = useRouter()
+  const { user } = useAuth()
   const [dishes, setDishes] = useState<Dish[]>([])
-  const [categories, setCategories] = useState<{id: string, name: string}[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [selectedDish, setSelectedDish] = useState<Dish | null>(null)
-  const [formData, setFormData] = useState({
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newDish, setNewDish] = useState({
     name: "",
     description: "",
     price: "",
     category_id: "",
     image_url: "",
-    is_available: true
+    is_available: true,
   })
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string>("")
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [editingDish, setEditingDish] = useState<Dish | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
 
-  const supabase = createClientComponentClient()
-
-  useEffect(() => {
-    fetchCategories()
-    fetchDishes()
-  }, [])
-
-  const fetchCategories = async () => {
+  const fetchDishes = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("id, name")
-        .order("name")
-
-      if (error) throw error
-
-      setCategories(data || [])
-    } catch (error) {
-      console.error("Error fetching categories:", error)
-      setError("Failed to fetch categories")
-    }
-  }
-
-  const fetchDishes = async () => {
-    try {
-      setIsLoading(true)
-      const { data, error } = await supabase
+      const { data: dishesData, error: dishesError } = await supabase
         .from("dishes")
         .select(`
           *,
-          categories:category_id (
+          category:categories (
             id,
             name
           )
         `)
+        .order("created_at", { ascending: false })
+
+      if (dishesError) throw dishesError
+
+      setDishes(dishesData || [])
+
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from("categories")
+        .select("*")
         .order("name")
+
+      if (categoriesError) throw categoriesError
+
+      setCategories(categoriesData || [])
+    } catch (error) {
+      console.error("Error fetching dishes:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/admin/login")
+      return
+    }
+    fetchDishes()
+  }, [user, router, fetchDishes])
+
+  const uploadImage = async (file: File) => {
+    try {
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${Math.random()}.${fileExt}`
+      const filePath = `dish-images/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("images")
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage
+        .from("images")
+        .getPublicUrl(filePath)
+
+      return urlData.publicUrl
+    } catch (error) {
+      console.error("Error uploading image:", error)
+      throw error
+    }
+  }
+
+  const handleCreateDish = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      let imageUrl = newDish.image_url
+
+      if (selectedImage) {
+        imageUrl = await uploadImage(selectedImage)
+      }
+
+      const { data, error } = await supabase
+        .from("dishes")
+        .insert([
+          {
+            name: newDish.name,
+            description: newDish.description,
+            price: parseFloat(newDish.price) * 100, // Convert to cents
+            category_id: newDish.category_id,
+            image_url: imageUrl,
+            is_available: newDish.is_available,
+          },
+        ])
+        .select(`
+          *,
+          category:categories (
+            id,
+            name
+          )
+        `)
+        .single()
 
       if (error) throw error
 
-      setDishes(data || [])
-    } catch (error) {
-      console.error("Error fetching dishes:", error)
-      setError("Failed to fetch dishes")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value
-    }))
-  }
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setImageFile(file)
-      // Create preview URL
-      const previewUrl = URL.createObjectURL(file)
-      setImagePreview(previewUrl)
-    }
-  }
-
-  const uploadImage = async (file: File): Promise<string> => {
-    try {
-      // Check authentication first
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error('You must be logged in to upload images');
-      }
-
-      // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-      if (!allowedTypes.includes(file.type)) {
-        throw new Error('Invalid file type. Please upload a JPG, PNG, or GIF image.');
-      }
-
-      // Validate file size (max 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
-      if (file.size > maxSize) {
-        throw new Error('File size too large. Please upload an image smaller than 5MB.');
-      }
-
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
-      const uniqueId = Math.random().toString(36).substring(2);
-      const fileName = `${session.user.id}/dish_${uniqueId}_${Date.now()}.${fileExt}`;
-      const bucketName = 'dishes';
-
-      console.log('Starting image upload process...', {
-        userId: session.user.id,
-        fileName: fileName,
-        fileType: file.type,
-        fileSize: file.size
-      });
-
-      // Upload the file directly to the dishes bucket
-      const { error: uploadError, data } = await supabase.storage
-        .from(bucketName)
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        if (uploadError.message.includes('policy')) {
-          throw new Error('Permission denied. Please make sure you have the right access level.');
-        }
-        throw new Error(`Upload failed: ${uploadError.message}`);
-      }
-
-      console.log('Upload successful:', data);
-
-      // Get the public URL
-      const { data: urlData } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(fileName);
-
-      if (!urlData.publicUrl) {
-        console.error('Error: No public URL generated');
-        throw new Error('Failed to get public URL for uploaded image');
-      }
-
-      console.log('Public URL generated:', urlData.publicUrl);
-      return urlData.publicUrl;
-
-    } catch (error: any) {
-      console.error('Error in uploadImage:', {
-        message: error.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-        stack: error?.stack
-      });
-      throw new Error(error.message || 'Failed to upload image. Please try again.');
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.name.trim()) {
-      setError("Dish name is required")
-      return
-    }
-
-    if (!formData.price || isNaN(parseFloat(formData.price))) {
-      setError("Valid price is required")
-      return
-    }
-
-    if (!formData.category_id) {
-      setError("Category is required")
-      return
-    }
-
-    if (!imageFile && !formData.image_url) {
-      setError("Image is required")
-      return
-    }
-
-    setError(null)
-    
-    try {
-      // First check if user is authenticated
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        setError("You must be logged in to perform this action")
-        return
-      }
-
-      let imageUrl = formData.image_url
-      
-      // Upload new image if selected
-      if (imageFile) {
-        try {
-          console.log('Uploading image...')
-          imageUrl = await uploadImage(imageFile)
-          console.log('Image uploaded successfully:', imageUrl)
-        } catch (uploadError) {
-          console.error('Image upload error:', uploadError)
-          setError("Failed to upload image. Please try again.")
-          return
-        }
-      }
-
-      const dishData = {
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        price: parseFloat(formData.price),
-        category_id: formData.category_id,
-        image_url: imageUrl,
-        is_available: formData.is_available
-      }
-
-      console.log('Saving dish with data:', dishData)
-
-      if (selectedDish) {
-        console.log('Updating existing dish:', selectedDish.id)
-        const { data, error } = await supabase
-          .from("dishes")
-          .update(dishData)
-          .eq("id", selectedDish.id)
-          .select()
-
-        if (error) throw error
-        console.log('Dish updated successfully:', data)
-      } else {
-        console.log('Creating new dish')
-        const { data, error } = await supabase
-          .from("dishes")
-          .insert([dishData])
-          .select()
-
-        if (error) throw error
-        console.log('Dish created successfully:', data)
-      }
-
-      await fetchDishes()
-      setIsDialogOpen(false)
-      setFormData({
+      setDishes([data, ...dishes])
+      setNewDish({
         name: "",
         description: "",
         price: "",
         category_id: "",
         image_url: "",
-        is_available: true
+        is_available: true,
       })
-      setImageFile(null)
-      setImagePreview("")
-      setSelectedDish(null)
-    } catch (error: any) {
-      console.error("Error saving dish:", {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      })
-      
-      let errorMessage = "Failed to save dish. "
-      if (error.message.includes("permission denied") || error.message.includes("policy")) {
-        errorMessage += "You don't have permission to perform this action."
-      } else if (error.message.includes("duplicate key") || error.message.includes("unique constraint")) {
-        errorMessage += "A dish with this name already exists."
-      } else if (error.message.includes("violates foreign key constraint")) {
-        errorMessage += "Invalid category selected."
-      } else {
-        errorMessage += error.message
-      }
-      
-      setError(errorMessage)
+      setSelectedImage(null)
+      setIsModalOpen(false)
+    } catch (error) {
+      console.error("Error creating dish:", error)
     }
   }
 
-  const handleEdit = (dish: Dish) => {
-    setSelectedDish(dish)
-    setFormData({
-      name: dish.name,
-      description: dish.description,
-      price: dish.price.toString(),
-      category_id: dish.category_id,
-      image_url: dish.image_url,
-      is_available: dish.is_available
-    })
-    setIsDialogOpen(true)
-  }
+  const handleUpdateDish = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingDish) return
 
-  const handleDelete = async (id: string) => {
     try {
+      let imageUrl = editingDish.image_url
+
+      if (selectedImage) {
+        imageUrl = await uploadImage(selectedImage)
+      }
+
       const { error } = await supabase
         .from("dishes")
-        .delete()
-        .eq("id", id)
+        .update({
+          name: editingDish.name,
+          description: editingDish.description,
+          price: editingDish.price,
+          category_id: editingDish.category.id,
+          image_url: imageUrl,
+          is_available: editingDish.is_available,
+        })
+        .eq("id", editingDish.id)
 
       if (error) throw error
 
-      fetchDishes()
+      setDishes(
+        dishes.map((dish) =>
+          dish.id === editingDish.id
+            ? {
+                ...editingDish,
+                image_url: imageUrl,
+              }
+            : dish
+        )
+      )
+      setEditingDish(null)
+      setSelectedImage(null)
+      setIsModalOpen(false)
     } catch (error) {
-      console.error("Error deleting dish:", error)
-      setError("Failed to delete dish")
+      console.error("Error updating dish:", error)
     }
   }
 
-  if (isLoading) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>
+  const handleDeleteDish = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this dish?")) return
+
+    try {
+      const { error } = await supabase.from("dishes").delete().eq("id", id)
+
+      if (error) throw error
+
+      setDishes(dishes.filter((dish) => dish.id !== id))
+    } catch (error) {
+      console.error("Error deleting dish:", error)
+    }
   }
 
-  if (error) {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedImage(e.target.files[0])
+    }
+  }
+
+  if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <p className="text-red-500 mb-4">{error}</p>
-        <button
-          onClick={() => {
-            setError(null)
-            fetchDishes()
-          }}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Retry
-        </button>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Manage Dishes</h1>
+        <h1 className="text-2xl font-semibold">Dishes</h1>
         <button
           onClick={() => {
-            setSelectedDish(null)
-            setFormData({
+            setEditingDish(null)
+            setNewDish({
               name: "",
               description: "",
               price: "",
               category_id: "",
               image_url: "",
-              is_available: true
+              is_available: true,
             })
-            setIsDialogOpen(true)
+            setIsModalOpen(true)
           }}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
         >
-          Add New Dish
+          Add Dish
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border rounded-lg">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="px-6 py-3 text-left">Name</th>
-              <th className="px-6 py-3 text-left">Price</th>
-              <th className="px-6 py-3 text-left">Category</th>
-              <th className="px-6 py-3 text-left">Status</th>
-              <th className="px-6 py-3 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dishes.map((dish) => (
-              <tr key={dish.id} className="border-t">
-                <td className="px-6 py-4">{dish.name}</td>
-                <td className="px-6 py-4">${dish.price.toFixed(2)}</td>
-                <td className="px-6 py-4">{dish.categories?.name || 'Unknown'}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded text-sm ${dish.is_available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                    {dish.is_available ? "Available" : "Unavailable"}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {dishes.map((dish) => (
+          <div key={dish.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="relative h-48">
+              <Image
+                src={dish.image_url || "/placeholder-dish.jpg"}
+                alt={dish.name}
+                fill
+                className="object-cover"
+              />
+            </div>
+            <div className="p-4">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <h2 className="text-xl font-semibold">{dish.name}</h2>
+                  <p className="text-sm text-gray-500">{dish.category.name}</p>
+                </div>
+                <span className="text-lg font-semibold">
+                  ${(dish.price / 100).toFixed(2)}
+                </span>
+              </div>
+              <p className="text-gray-600 text-sm mb-4">{dish.description}</p>
+              <div className="flex justify-between items-center">
+                <div className="flex space-x-2">
                   <button
-                    onClick={() => handleEdit(dish)}
-                    className="text-blue-500 hover:text-blue-700 mr-4"
+                    onClick={() => {
+                      setEditingDish(dish)
+                      setIsModalOpen(true)
+                    }}
+                    className="text-blue-500 hover:text-blue-700"
                   >
                     Edit
                   </button>
                   <button
-                    onClick={() => handleDelete(dish.id)}
+                    onClick={() => handleDeleteDish(dish.id)}
                     className="text-red-500 hover:text-red-700"
                   >
                     Delete
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{selectedDish ? "Edit Dish" : "Add New Dish"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="w-full p-2 border rounded"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Description</label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                className="w-full p-2 border rounded"
-                rows={3}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Price</label>
-              <input
-                type="number"
-                name="price"
-                value={formData.price}
-                onChange={handleInputChange}
-                className="w-full p-2 border rounded"
-                step="0.01"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Category</label>
-              <select
-                name="category_id"
-                value={formData.category_id}
-                onChange={handleInputChange}
-                className="w-full p-2 border rounded"
-                required
-              >
-                <option value="">Select a category</option>
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Image</label>
-              <div className="flex flex-col items-center gap-4">
-                {(imagePreview || formData.image_url) && (
-                  <img
-                    src={imagePreview || formData.image_url}
-                    alt="Preview"
-                    className="w-32 h-32 object-cover rounded"
-                  />
-                )}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="w-full"
-                />
+                </div>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs ${
+                    dish.is_available
+                      ? "bg-green-100 text-green-800"
+                      : "bg-red-100 text-red-800"
+                  }`}
+                >
+                  {dish.is_available ? "Available" : "Unavailable"}
+                </span>
               </div>
             </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="is_available"
-                checked={formData.is_available}
-                onChange={handleInputChange}
-                className="mr-2"
-              />
-              <label className="text-sm font-medium">Available</label>
-            </div>
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => setIsDialogOpen(false)}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                {selectedDish ? "Update" : "Create"}
-              </button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+        ))}
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-4">
+              {editingDish ? "Edit Dish" : "Add Dish"}
+            </h2>
+            <form
+              onSubmit={editingDish ? handleUpdateDish : handleCreateDish}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <input
+                  type="text"
+                  value={editingDish ? editingDish.name : newDish.name}
+                  onChange={(e) =>
+                    editingDish
+                      ? setEditingDish({ ...editingDish, name: e.target.value })
+                      : setNewDish({ ...newDish, name: e.target.value })
+                  }
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Description
+                </label>
+                <textarea
+                  value={editingDish ? editingDish.description : newDish.description}
+                  onChange={(e) =>
+                    editingDish
+                      ? setEditingDish({
+                          ...editingDish,
+                          description: e.target.value,
+                        })
+                      : setNewDish({ ...newDish, description: e.target.value })
+                  }
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+                  rows={3}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={
+                    editingDish
+                      ? (editingDish.price / 100).toFixed(2)
+                      : newDish.price
+                  }
+                  onChange={(e) =>
+                    editingDish
+                      ? setEditingDish({
+                          ...editingDish,
+                          price: parseFloat(e.target.value) * 100,
+                        })
+                      : setNewDish({ ...newDish, price: e.target.value })
+                  }
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Category
+                </label>
+                <select
+                  value={editingDish ? editingDish.category.id : newDish.category_id}
+                  onChange={(e) =>
+                    editingDish
+                      ? setEditingDish({
+                          ...editingDish,
+                          category: {
+                            id: e.target.value,
+                            name:
+                              categories.find((c) => c.id === e.target.value)
+                                ?.name || "",
+                          },
+                        })
+                      : setNewDish({ ...newDish, category_id: e.target.value })
+                  }
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+                  required
+                >
+                  <option value="">Select a category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Image</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="mt-1 block w-full"
+                />
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={editingDish ? editingDish.is_available : newDish.is_available}
+                  onChange={(e) =>
+                    editingDish
+                      ? setEditingDish({
+                          ...editingDish,
+                          is_available: e.target.checked,
+                        })
+                      : setNewDish({ ...newDish, is_available: e.target.checked })
+                  }
+                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-900">Available</label>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
+                >
+                  {editingDish ? "Update" : "Create"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
