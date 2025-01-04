@@ -8,6 +8,13 @@ const nextConfig = {
       'images.unsplash.com'
     ],
   },
+  swcMinify: true,
+  experimental: {
+    optimizeCss: true,
+    modern: true
+  },
+  compress: true,
+  poweredByHeader: false,
 }
 
 module.exports = nextConfig 

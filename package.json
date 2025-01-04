@@ -9,7 +9,7 @@
     "lint": "next lint",
     "docker:build": "docker build -t homelyeats .",
     "docker:run": "docker run -p 3000:3000 homelyeats",
-    "vercel-build": "next build && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/"
+    "vercel-build": "npm run build"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
