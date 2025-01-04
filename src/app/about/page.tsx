@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 
 export default function AboutPage() {
@@ -78,12 +77,18 @@ export default function AboutPage() {
           Whether you&apos;re a food lover looking for authentic homemade meals or a talented home chef wanting to share your culinary creations, we&apos;d love to have you in our community.
         </p>
         <div className="flex gap-4">
-          <button className="bg-primary text-white px-6 py-2 rounded-md hover:bg-primary-dark transition-colors">
+          <Link 
+            href="/menu"
+            className="bg-primary text-white px-6 py-2 rounded-md hover:bg-primary-dark transition-colors"
+          >
             Order Now
-          </button>
-          <button className="border border-primary text-primary px-6 py-2 rounded-md hover:bg-primary hover:text-white transition-colors">
+          </Link>
+          <Link 
+            href="/contact"
+            className="border border-primary text-primary px-6 py-2 rounded-md hover:bg-primary hover:text-white transition-colors"
+          >
             Become a Chef
-          </button>
+          </Link>
         </div>
       </section>
     </div>

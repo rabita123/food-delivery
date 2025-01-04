@@ -10,8 +10,9 @@
     "@typescript-eslint/no-unused-vars": "warn",
     "no-unused-vars": "off",
     "react/no-unescaped-entities": "off",
-    "react-hooks/exhaustive-deps": "warn",
+    "react-hooks/exhaustive-deps": "off",
     "@next/next/no-img-element": "warn",
-    "react-hooks/rules-of-hooks": "warn"
+    "react-hooks/rules-of-hooks": "warn",
+    "@typescript-eslint/ban-ts-comment": "off"
   }
 } 

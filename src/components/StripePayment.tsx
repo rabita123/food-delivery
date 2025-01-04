@@ -48,9 +48,10 @@ function PaymentForm({ onSuccess, onError, orderId, amount }: PaymentFormProps) 
       }
 
       onSuccess();
-    } catch (error: any) {
-      setMessage(error.message || 'An error occurred');
-      onError(error);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      setMessage(errorMessage);
+      onError(error instanceof Error ? error : new Error(errorMessage));
     } finally {
       setIsLoading(false);
     }
