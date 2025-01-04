@@ -5,92 +5,79 @@ import Link from 'next/link';
 export default function AboutPage() {
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-8">About HomelyEats</h1>
-      
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold mb-4">Our Story</h2>
-        <p className="text-gray-700 mb-4">
-          Welcome to HomelyEats, where we bring the comfort of home-cooked meals right to your doorstep. Our journey began with a simple idea: everyone deserves access to delicious, nutritious, homemade food, even when they&apos;re too busy to cook.
-        </p>
-      </section>
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-4xl font-bold text-center mb-8">About HomeLy Eats</h1>
 
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold mb-4">Our Mission</h2>
-        <p className="text-gray-700 mb-4">
-          At HomelyEats, we&apos;re committed to:
-        </p>
-        <ul className="list-disc list-inside text-gray-700 space-y-2">
-          <li>Connecting talented home chefs with food lovers in their community</li>
-          <li>Ensuring the highest standards of food quality and safety</li>
-          <li>Supporting local communities and promoting sustainable food practices</li>
-          <li>Making authentic, homemade food accessible to everyone</li>
-        </ul>
-      </section>
+        <div className="prose prose-lg max-w-none">
+          <p className="mb-6">
+            Welcome to HomeLy Eats, where we&apos;re revolutionizing the way people experience home-cooked meals. Our platform connects talented home chefs with food enthusiasts who appreciate the authenticity and warmth of homemade cuisine.
+          </p>
 
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold mb-4">How It Works</h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold mb-3">Browse & Order</h3>
-            <p className="text-gray-700">
-              Explore our diverse menu of homemade dishes and place your order with just a few clicks.
-            </p>
+          <h2 className="text-2xl font-semibold mt-8 mb-4">Our Story</h2>
+          <p className="mb-6">
+            HomeLy Eats was born from a simple observation: in a world of fast food and chain restaurants, people are craving the comfort and authenticity of home-cooked meals. We recognized that many talented home chefs have incredible recipes and culinary skills passed down through generations, yet lacked a platform to share their creations with a wider audience.
+          </p>
+
+          <h2 className="text-2xl font-semibold mt-8 mb-4">Our Mission</h2>
+          <p className="mb-6">
+            Our mission is to create meaningful connections through food, empowering home chefs while providing food lovers with access to authentic, homemade meals. We believe that every meal tells a story, and we&apos;re here to help share those stories with the world.
+          </p>
+
+          <h2 className="text-2xl font-semibold mt-8 mb-4">What We Offer</h2>
+          <div className="grid md:grid-cols-2 gap-6 mt-4">
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-xl font-semibold mb-3">For Food Lovers</h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Access to diverse, authentic home-cooked meals</li>
+                <li>Transparent pricing and easy ordering</li>
+                <li>Direct connection with talented home chefs</li>
+                <li>Secure payment processing</li>
+                <li>Detailed meal descriptions and photos</li>
+              </ul>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-xl font-semibold mb-3">For Home Chefs</h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Platform to showcase culinary talents</li>
+                <li>Flexible scheduling and pricing</li>
+                <li>Direct customer interaction</li>
+                <li>Secure payment processing</li>
+                <li>Marketing and promotion support</li>
+              </ul>
+            </div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold mb-3">Fresh Preparation</h3>
-            <p className="text-gray-700">
-              Our home chefs prepare your meal fresh, using quality ingredients and authentic recipes.
-            </p>
+
+          <h2 className="text-2xl font-semibold mt-8 mb-4">Our Values</h2>
+          <div className="grid md:grid-cols-3 gap-6 mt-4">
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold mb-3">Authenticity</h3>
+              <p className="text-gray-600">
+                We celebrate the genuine flavors and traditions of home cooking, preserving cultural heritage through food.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold mb-3">Community</h3>
+              <p className="text-gray-600">
+                We foster meaningful connections between chefs and food lovers, building a vibrant culinary community.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold mb-3">Quality</h3>
+              <p className="text-gray-600">
+                We maintain high standards for food safety and service, ensuring a premium experience for all users.
+              </p>
+            </div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold mb-3">Swift Delivery</h3>
-            <p className="text-gray-700">
-              We deliver your food hot and fresh, right to your doorstep at your chosen time.
-            </p>
-          </div>
+
+          <h2 className="text-2xl font-semibold mt-8 mb-4">Join Our Community</h2>
+          <p className="mb-6">
+            Whether you&apos;re a passionate home chef looking to share your culinary creations or a food enthusiast seeking authentic home-cooked meals, HomeLy Eats is your platform. Join us in revolutionizing the way people experience food, one home-cooked meal at a time.
+          </p>
         </div>
-      </section>
-
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold mb-4">Our Home Chefs</h2>
-        <p className="text-gray-700 mb-4">
-          We partner with passionate home chefs who bring years of experience and love for cooking to every dish they prepare. Each chef is carefully vetted and follows strict food safety guidelines to ensure you receive the highest quality meals.
-        </p>
-      </section>
-
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold mb-4">Quality & Safety</h2>
-        <p className="text-gray-700 mb-4">
-          Your safety is our top priority. We maintain rigorous standards for:
-        </p>
-        <ul className="list-disc list-inside text-gray-700 space-y-2">
-          <li>Kitchen hygiene and cleanliness</li>
-          <li>Ingredient freshness and quality</li>
-          <li>Food handling and packaging</li>
-          <li>Delivery safety protocols</li>
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">Join Our Community</h2>
-        <p className="text-gray-700 mb-4">
-          Whether you&apos;re a food lover looking for authentic homemade meals or a talented home chef wanting to share your culinary creations, we&apos;d love to have you in our community.
-        </p>
-        <div className="flex gap-4">
-          <Link 
-            href="/menu"
-            className="bg-primary text-white px-6 py-2 rounded-md hover:bg-primary-dark transition-colors"
-          >
-            Order Now
-          </Link>
-          <Link 
-            href="/contact"
-            className="border border-primary text-primary px-6 py-2 rounded-md hover:bg-primary hover:text-white transition-colors"
-          >
-            Become a Chef
-          </Link>
-        </div>
-      </section>
+      </div>
     </div>
   );
 } 

@@ -1,271 +1,96 @@
 'use client';
-import React from 'react';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { supabase } from '@/lib/supabase';
-import {
-  Box,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Typography,
-  Alert,
-  ThemeProvider,
-  CssBaseline,
-  Checkbox,
-  FormControlLabel,
-} from '@mui/material';
-import theme from '@/theme/theme';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      const { data: { user }, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) throw signInError;
-      if (!user) throw new Error('No user found');
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      if (profile?.role !== 'admin') {
-        await supabase.auth.signOut();
-        throw new Error('Unauthorized access. Admin privileges required.');
-      }
-
+      const { error } = await signIn(email, password);
+      if (error) throw error;
       router.push('/admin/dashboard');
-      
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'An error occurred');
+      console.error('Login error:', error);
+      setError('Invalid email or password');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: '#f8f9fa',
-          p: 3,
-        }}
-      >
-        <Card
-          sx={{
-            display: 'flex',
-            maxWidth: 1000,
-            width: '100%',
-            borderRadius: 3,
-            overflow: 'hidden',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
-          }}
-        >
-          {/* Left Side - Login Form */}
-          <Box sx={{ flex: 1, p: 4 }}>
-            <Box sx={{ mb: 4 }}>
-              <Typography
-                variant="h4"
-                component="h1"
-                sx={{
-                  fontWeight: 600,
-                  color: '#2C3E50',
-                  mb: 1,
-                }}
-              >
-                Log in.
-              </Typography>
-              <Typography
-                color="text.secondary"
-                sx={{ mb: 3 }}
-              >
-                Login with your admin credentials.
-              </Typography>
-            </Box>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Admin Login</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Please sign in to access the admin dashboard
+          </p>
+        </div>
 
-            {error && (
-              <Alert 
-                severity="error" 
-                sx={{ mb: 3, borderRadius: 2 }}
-              >
-                {error}
-              </Alert>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+              required
+            />
+          </div>
 
-            <form onSubmit={handleLogin}>
-              <TextField
-                label="Your e-mail"
-                type="email"
-                fullWidth
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                sx={{
-                  mb: 2.5,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  },
-                }}
-              />
-              <TextField
-                label="Password"
-                type="password"
-                fullWidth
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                sx={{
-                  mb: 2,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  },
-                }}
-              />
+          <div>
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+              required
+            />
+          </div>
 
-              <Box
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  mb: 3,
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      sx={{
-                        color: '#00A651',
-                        '&.Mui-checked': {
-                          color: '#00A651',
-                        },
-                      }}
-                    />
-                  }
-                  label="Keep me logged in"
-                />
-                <Button
-                  variant="text"
-                  sx={{
-                    color: '#00A651',
-                    textTransform: 'none',
-                    '&:hover': {
-                      backgroundColor: 'transparent',
-                      textDecoration: 'underline',
-                    },
-                  }}
-                >
-                  Forgot Password?
-                </Button>
-              </Box>
+          {error && (
+            <div className="text-red-500 text-sm text-center">{error}</div>
+          )}
 
-              <Button
-                type="submit"
-                fullWidth
-                disabled={loading}
-                sx={{
-                  bgcolor: '#00A651',
-                  color: 'white',
-                  py: 1.5,
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontSize: '1rem',
-                  '&:hover': {
-                    bgcolor: '#008C44',
-                  },
-                }}
-              >
-                {loading ? 'Logging in...' : 'Log In'}
-              </Button>
-            </form>
-          </Box>
-
-          {/* Right Side - Illustration */}
-          <Box
-            sx={{
-              flex: 1,
-              bgcolor: '#F5F9F6',
-              display: { xs: 'none', md: 'flex' },
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              p: 4,
-              position: 'relative',
-            }}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
           >
-            <Box
-              sx={{
-                width: '100%',
-                height: '300px',
-                position: 'relative',
-                mb: 4,
-              }}
-            >
-              <Image
-                src="/admin-illustration.svg"
-                alt="Admin illustration"
-                fill
-                style={{ objectFit: 'contain' }}
-              />
-            </Box>
-            <Typography
-              variant="h5"
-              sx={{
-                color: '#2C3E50',
-                fontWeight: 600,
-                mb: 2,
-                textAlign: 'center',
-              }}
-            >
-              Don't have account yet?
-            </Typography>
-            <Typography
-              color="text.secondary"
-              sx={{
-                textAlign: 'center',
-                mb: 2,
-              }}
-            >
-              Contact us at{' '}
-              <Box
-                component="span"
-                sx={{ color: '#00A651', fontWeight: 500 }}
-              >
-                admin@homemade.com
-              </Box>
-              {' '}and
-              <br />
-              We will take care of everything!
-            </Typography>
-          </Box>
-        </Card>
-      </Box>
-    </ThemeProvider>
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+
+        <p className="mt-8 text-center text-sm text-gray-600">
+          Don&apos;t have an admin account? Please contact the system administrator.
+        </p>
+      </div>
+    </div>
   );
 } 
