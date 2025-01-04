@@ -1,20 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
   images: {
-    domains: [
-      'localhost', 
-      'bkoalanbgfxqzegoxqbj.supabase.co',
-      'images.unsplash.com'
-    ],
+    domains: ['images.unsplash.com'],
   },
-  swcMinify: true,
   experimental: {
     optimizeCss: true,
-    modern: true
   },
-  compress: true,
-  poweredByHeader: false,
+  output: 'standalone',
 }
 
 module.exports = nextConfig 
