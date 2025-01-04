@@ -6,9 +6,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
-import { Loader2, CreditCard, Banknote, CheckCircle2 } from 'lucide-react';
+import { Loader2, CreditCard, Banknote, CheckCircle2, Download } from 'lucide-react';
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 import StripePayment from '@/components/StripePayment';
-import OrderInvoice from '@/components/OrderInvoice';
+
+// Initialize Stripe
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface OrderItem {
   id: string;
@@ -44,6 +48,8 @@ export default function OrderPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showStripePayment, setShowStripePayment] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -128,89 +134,96 @@ export default function OrderPage() {
     }
 
     setError(null);
-
-    if (selectedPaymentMethod === 'card') {
-      setShowStripePayment(true);
-      return;
-    }
-
-    // Handle cash payment
     setIsProcessingPayment(true);
+
     try {
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ 
-          status: 'pending', // Cash payments start as pending
-          payment_method: 'cash',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', params.id);
+      if (selectedPaymentMethod === 'card') {
+        // Initialize Stripe payment
+        const response = await fetch('/api/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: order?.total_amount,
+            orderId: order?.id,
+          }),
+        });
 
-      if (updateError) throw updateError;
-      
-      // Reload order to confirm update
-      const { data: updatedOrder, error: fetchError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', params.id)
-        .single();
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to initialize payment');
+        }
 
-      if (fetchError) throw fetchError;
-      
-      if (updatedOrder.status !== 'pending') {
-        throw new Error('Failed to update order status');
+        const data = await response.json();
+        setClientSecret(data.clientSecret);
+        setShowStripePayment(true);
+      } else {
+        // Handle cash payment
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update({ 
+            status: 'confirmed',
+            payment_method: 'cash',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', params.id);
+
+        if (updateError) throw updateError;
+        
+        await loadOrder();
+        setShowSuccess(true);
       }
-
-      await loadOrder(); // Reload the order first
-      setShowSuccess(true); // Then show success state
     } catch (error: any) {
       console.error('Payment error:', error);
-      setError(error.message || 'Failed to confirm order. Please try again.');
+      setError(error.message || 'Failed to process payment');
     } finally {
       setIsProcessingPayment(false);
     }
   };
 
   const handleStripeSuccess = async () => {
-    try {
-      // Update order status
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ 
-          status: 'paid',
-          payment_method: 'card',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', params.id);
-
-      if (updateError) throw updateError;
-
-      // Verify the update
-      const { data: updatedOrder, error: fetchError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', params.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-      
-      if (updatedOrder.status !== 'paid') {
-        throw new Error('Failed to update order status');
-      }
-
-      await loadOrder(); // Reload the order first
-      setShowStripePayment(false);
-      setShowSuccess(true); // Then show success state
-    } catch (error: any) {
-      console.error('Error updating order:', error);
-      setError('Failed to update order status. Please contact support.');
-      setShowStripePayment(false);
-    }
+    await loadOrder();
+    setShowStripePayment(false);
+    setShowSuccess(true);
   };
 
-  const handleStripeError = (errorMessage: string) => {
-    setError(errorMessage);
+  const handleStripeError = (error: Error) => {
+    setError(error.message);
     setShowStripePayment(false);
+  };
+
+  const handleDownloadInvoice = async () => {
+    if (!order) {
+      setError('Order not found');
+      return;
+    }
+
+    try {
+      setIsGeneratingInvoice(true);
+      const response = await fetch('/api/invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate invoice');
+      }
+
+      const { pdfUrl } = await response.json();
+      
+      // Create a link element and trigger download
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `invoice-${order.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      setError('Failed to download invoice');
+    } finally {
+      setIsGeneratingInvoice(false);
+    }
   };
 
   if (isLoading) {
@@ -254,6 +267,20 @@ export default function OrderPage() {
                   </p>
                 </div>
               )}
+              <div className="mt-6">
+                <Button
+                  onClick={handleDownloadInvoice}
+                  disabled={isGeneratingInvoice}
+                  className="inline-flex items-center space-x-2"
+                >
+                  {isGeneratingInvoice ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span>{isGeneratingInvoice ? 'Generating Invoice...' : 'Download Invoice'}</span>
+                </Button>
+              </div>
             </div>
 
             {/* Order Summary */}
@@ -296,23 +323,6 @@ export default function OrderPage() {
               </div>
             </div>
 
-            {/* Delivery Details */}
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Delivery Details</h2>
-              <div className="space-y-2 text-gray-600">
-                <p><span className="font-medium">Address:</span> {order.delivery_address}</p>
-                <p><span className="font-medium">Contact:</span> {order.contact_number}</p>
-                {order.special_instructions && (
-                  <p><span className="font-medium">Special Instructions:</span> {order.special_instructions}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Invoice Download */}
-            <div className="mb-8">
-              <OrderInvoice order={order} />
-            </div>
-
             {/* Action Buttons */}
             <div className="space-y-3">
               <Button onClick={() => router.push('/orders')} className="w-full">
@@ -328,7 +338,7 @@ export default function OrderPage() {
     );
   }
 
-  if (showStripePayment) {
+  if (showStripePayment && clientSecret) {
     return (
       <div className="min-h-screen bg-gray-50 py-12">
         <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
@@ -336,19 +346,32 @@ export default function OrderPage() {
             <div className="px-6 py-4 border-b border-gray-200">
               <h1 className="text-2xl font-semibold text-gray-900">Card Payment</h1>
               <p className="mt-2 text-sm text-gray-600">
-                Order #{order?.id}
+                Order #{order.id}
               </p>
               <p className="text-sm text-gray-600">
-                Amount: ${order?.total_amount.toFixed(2)}
+                Amount: ${order.total_amount.toFixed(2)}
               </p>
             </div>
             <div className="p-6">
-              <StripePayment
-                amount={order?.total_amount || 0}
-                orderId={order?.id || ''}
-                onSuccess={handleStripeSuccess}
-                onError={handleStripeError}
-              />
+              <Elements
+                stripe={stripePromise}
+                options={{
+                  clientSecret,
+                  appearance: {
+                    theme: 'stripe',
+                    variables: {
+                      colorPrimary: '#f97316',
+                    },
+                  },
+                }}
+              >
+                <StripePayment
+                  amount={order.total_amount}
+                  orderId={order.id}
+                  onSuccess={handleStripeSuccess}
+                  onError={handleStripeError}
+                />
+              </Elements>
               <Button
                 onClick={() => setShowStripePayment(false)}
                 variant="outline"
@@ -376,12 +399,6 @@ export default function OrderPage() {
             <p className="text-sm text-gray-600">
               Placed on {new Date(order.created_at).toLocaleDateString()}
             </p>
-            <div className={`mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-              ${order.status === 'paid' ? 'bg-green-100 text-green-800' : 
-                order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                'bg-gray-100 text-gray-800'}`}>
-              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-            </div>
           </div>
 
           {/* Order Items */}
@@ -405,24 +422,6 @@ export default function OrderPage() {
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* Delivery Details */}
-          <div className="px-6 py-4 border-t border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Delivery Details</h2>
-            <div className="space-y-2">
-              <p className="text-gray-600">
-                <span className="font-medium">Address:</span> {order.delivery_address}
-              </p>
-              <p className="text-gray-600">
-                <span className="font-medium">Contact:</span> {order.contact_number}
-              </p>
-              {order.special_instructions && (
-                <p className="text-gray-600">
-                  <span className="font-medium">Special Instructions:</span> {order.special_instructions}
-                </p>
-              )}
             </div>
           </div>
 

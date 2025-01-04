@@ -12,7 +12,7 @@ interface Dish {
   category_id: string
   image_url: string
   is_available: boolean
-  categories?: {
+  category?: {
     id: string
     name: string
   }
@@ -76,7 +76,7 @@ export default function DishesPage() {
         .from("dishes")
         .select(`
           *,
-          categories:category_id (
+          category:categories (
             id,
             name
           )
@@ -392,7 +392,7 @@ export default function DishesPage() {
               <tr key={dish.id} className="border-t">
                 <td className="px-6 py-4">{dish.name}</td>
                 <td className="px-6 py-4">${dish.price.toFixed(2)}</td>
-                <td className="px-6 py-4">{dish.categories?.name || 'Unknown'}</td>
+                <td className="px-6 py-4">{dish.category?.name || 'Uncategorized'}</td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-1 rounded text-sm ${dish.is_available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                     {dish.is_available ? "Available" : "Unavailable"}

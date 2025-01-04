@@ -42,35 +42,27 @@ const OrderInvoice: FC<OrderInvoiceProps> = ({ order }) => {
   const downloadPDF = () => {
     const doc = new jsPDF();
     
-    // Add logo
-    const logoUrl = '/logo.png'; // Make sure this path is correct
-    try {
-      doc.addImage(logoUrl, 'PNG', 20, 10, 40, 40);
-    } catch (error) {
-      console.error('Error adding logo:', error);
-    }
-
-    // Add company name in orange
+    // Add logo and header
     doc.setTextColor(249, 115, 22); // Orange color (#f97316)
     doc.setFontSize(24);
-    doc.text('HomelyEats', 70, 30);
+    doc.text('HomelyEats', 20, 30);
     
     // Reset text color to black
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
-    doc.text('Your Favorite Home-Cooked Meals, Delivered', 70, 40);
+    doc.text('Your Favorite Home-Cooked Meals, Delivered', 20, 40);
 
     // Add a decorative line
     doc.setDrawColor(249, 115, 22);
     doc.setLineWidth(0.5);
-    doc.line(20, 55, 190, 55);
+    doc.line(20, 45, 190, 45);
 
     // Add invoice title and details
     doc.setFontSize(16);
-    doc.text('Invoice', 20, 70);
+    doc.text('Invoice', 20, 60);
     
     doc.setFontSize(11);
-    doc.text(`Order #${order.id}`, 20, 80);
+    doc.text(`Order #${order.id}`, 20, 70);
     doc.text(
       `Date: ${new Date(order.created_at).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -80,12 +72,12 @@ const OrderInvoice: FC<OrderInvoiceProps> = ({ order }) => {
         minute: '2-digit',
       })}`,
       20, 
-      87
+      77
     );
-    doc.text(`Status: ${order.status.toUpperCase()}`, 20, 94);
-    doc.text(`Payment Method: ${order.payment_method?.toUpperCase() || 'N/A'}`, 20, 101);
+    doc.text(`Status: ${order.status.toUpperCase()}`, 20, 84);
+    doc.text(`Payment Method: ${order.payment_method?.toUpperCase() || 'N/A'}`, 20, 91);
 
-    // Add items table with enhanced styling
+    // Add items table
     const tableData = order.items.map(item => [
       item.dish.name,
       item.quantity.toString(),
@@ -94,7 +86,7 @@ const OrderInvoice: FC<OrderInvoiceProps> = ({ order }) => {
     ]);
 
     doc.autoTable({
-      startY: 110,
+      startY: 100,
       head: [['Item', 'Quantity', 'Unit Price', 'Total']],
       body: tableData,
       theme: 'grid',

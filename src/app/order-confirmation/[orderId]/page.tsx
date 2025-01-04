@@ -8,6 +8,7 @@ import Link from 'next/link';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { UserResponse } from '@supabase/supabase-js';
+import OrderInvoice from '@/components/OrderInvoice';
 
 // Extend jsPDF type to include autoTable
 declare module 'jspdf' {
@@ -28,7 +29,9 @@ interface OrderDetails {
   special_instructions: string | null;
   created_at: string;
   estimated_delivery_time: string;
+  payment_method?: 'cash' | 'card';
   items: Array<{
+    dish_id: string;
     dish_name: string;
     quantity: number;
     price: number;
@@ -139,6 +142,7 @@ export default function OrderConfirmation() {
             contact_number,
             special_instructions,
             created_at,
+            payment_method,
             order_items (
               quantity,
               price_at_time,
@@ -180,8 +184,10 @@ export default function OrderConfirmation() {
           contact_number: orderData.contact_number,
           special_instructions: orderData.special_instructions,
           created_at: orderData.created_at,
+          payment_method: orderData.payment_method,
           estimated_delivery_time: estimatedDeliveryTime,
           items: orderData.order_items.map((item: any) => ({
+            dish_id: item.dishes.id,
             dish_name: item.dishes.name,
             quantity: item.quantity,
             price: item.price_at_time,
@@ -243,8 +249,8 @@ export default function OrderConfirmation() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Success Banner */}
           <div className="bg-green-100 p-4">
@@ -265,139 +271,44 @@ export default function OrderConfirmation() {
             </div>
           </div>
 
-          {/* Header */}
-          <div className="px-4 py-6 border-b border-gray-200 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Order Confirmation</h1>
-                <p className="mt-1 text-sm text-gray-500">
-                  Order #{order.id}
-                </p>
-                <p className="text-sm text-gray-500">
-                  Placed on {new Date(order.created_at).toLocaleString()}
-                </p>
-              </div>
-              <div className="flex flex-col items-end space-y-2">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium capitalize 
-                  ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                    order.status === 'preparing' ? 'bg-blue-100 text-blue-800' : 
-                    order.status === 'delivering' ? 'bg-purple-100 text-purple-800' : 
-                    'bg-green-100 text-green-800'}`}>
-                  {order.status}
-                </span>
-                <button
-                  onClick={generateInvoice}
-                  disabled={isDownloading}
-                  className="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md flex items-center"
-                >
-                  <svg className="h-4 w-4 mr-1" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                    <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  {isDownloading ? 'Generating...' : 'Download Invoice'}
-                </button>
-              </div>
-            </div>
+          {/* Order Invoice */}
+          <div className="p-6">
+            <OrderInvoice order={{
+              id: order.id,
+              created_at: order.created_at,
+              status: order.status,
+              total_amount: order.total_amount,
+              delivery_address: order.delivery_address,
+              contact_number: order.contact_number,
+              special_instructions: order.special_instructions,
+              payment_method: order.payment_method,
+              items: order.items.map(item => ({
+                id: item.dish_id,
+                dish_id: item.dish_id,
+                quantity: item.quantity,
+                price_at_time: item.price,
+                dish: {
+                  name: item.dish_name,
+                  image_url: item.image_url
+                }
+              }))
+            }} />
           </div>
 
-          {/* Estimated Delivery Time */}
-          <div className="px-4 py-4 sm:px-6 bg-orange-50">
-            <div className="flex items-center">
-              <svg className="h-5 w-5 text-orange-500" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-gray-900">Estimated Delivery Time</h3>
-                <p className="text-sm text-gray-700">{order.estimated_delivery_time}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Order Details */}
-          <div className="px-4 py-6 sm:px-6">
-            <div className="mb-6">
-              <h2 className="text-lg font-medium text-gray-900">Delivery Information</h2>
-              <div className="mt-4 bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Delivery Address</p>
-                    <p className="mt-1 text-sm text-gray-900">{order.delivery_address}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Contact Number</p>
-                    <p className="mt-1 text-sm text-gray-900">{order.contact_number}</p>
-                  </div>
-                  {order.special_instructions && (
-                    <div className="md:col-span-2">
-                      <p className="text-sm font-medium text-gray-500">Special Instructions</p>
-                      <p className="mt-1 text-sm text-gray-900">{order.special_instructions}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-lg font-medium text-gray-900">Order Summary</h2>
-              <div className="mt-4 bg-gray-50 rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {order.items.map((item, index) => (
-                        <tr key={index}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 relative">
-                                <Image
-                                  src={item.image_url || '/default-dish.jpg'}
-                                  alt={item.dish_name}
-                                  fill
-                                  className="rounded-full object-cover"
-                                />
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{item.dish_name}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.price.toFixed(2)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${(item.price * item.quantity).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div className="mt-6 border-t border-gray-200 pt-4">
-                <div className="flex justify-between text-base font-medium text-gray-900">
-                  <p>Total</p>
-                  <p>${order.total_amount.toFixed(2)}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 flex flex-col space-y-4">
+          {/* Action Buttons */}
+          <div className="px-6 pb-6 space-y-3">
               <Link
-                href="/menu"
+              href="/orders"
                 className="block w-full bg-orange-500 text-white text-center py-3 px-4 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
               >
-                Order More Food
+              View All Orders
               </Link>
               <Link
-                href="/orders"
+              href="/menu"
                 className="block w-full bg-white text-orange-500 text-center py-3 px-4 rounded-md border border-orange-500 hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
               >
-                View All Orders
+              Continue Shopping
               </Link>
-            </div>
           </div>
         </div>
       </div>
